@@ -36,12 +36,12 @@
     
     SCNNode *planeNode = [SCNNode nodeWithGeometry:self.planeGeometry];
     
-    planeNode.position = SCNVector3Make(0, -planeHeight / 2, 0);
+    planeNode.position = SCNVector3Make(0, anchor.center.y, 0);
     
     planeNode.physicsBody = [SCNPhysicsBody bodyWithType:SCNPhysicsBodyTypeKinematic shape:[SCNPhysicsShape shapeWithGeometry:self.planeGeometry options:nil]];
     
     
-     [self setTextureScale];
+    [self setTextureScale];
     
     [self addChildNode:planeNode];
     
@@ -73,7 +73,7 @@
     // transform contains the translation parameters. As the plane is updated
     // the planes translation remains the same but it's center is updated so
     // we need to update the 3D geometry position
-    self.position = SCNVector3Make(anchor.center.x, 0, anchor.center.z);
+    self.position = SCNVector3Make(anchor.center.x, anchor.center.y, anchor.center.z);
     [self setTextureScale];
 }
 @end

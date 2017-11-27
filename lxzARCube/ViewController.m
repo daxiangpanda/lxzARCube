@@ -24,11 +24,10 @@ typedef NS_OPTIONS(NSUInteger, CollisionCategory) {
 @property (nonatomic, assign) int                       cubeNum;
 
 @property (nonatomic, strong) UILabel                   *xLabel;
-@property (nonatomic, strong) UILabel                   *yLabel;
-@property (nonatomic, strong) UILabel                   *zLabel;
-@property (nonatomic, strong) UILabel                   *scaleLabel;
 
+@property (nonatomic, strong) UIButton                  *clearButton;
 
+@property (nonatomic, strong) NSMutableArray<SCNNode *> * lingerList;
 @end
 
     
@@ -37,11 +36,13 @@ typedef NS_OPTIONS(NSUInteger, CollisionCategory) {
 - (void)viewDidLoad {
     [super viewDidLoad];
     
+    [self setupView];
+    
     [self setupScene];
     
     [self setupRecognizers];
     
-    [self insertSpotLight:SCNVector3Make(0.0, 0.0, 0.0)];
+//    [self insertSpotLight:SCNVector3Make(0.0, 0.0, 0.0)];
     
     
 }
@@ -58,7 +59,11 @@ typedef NS_OPTIONS(NSUInteger, CollisionCategory) {
     [self.sceneView.session pause];
 }
 
-
+- (void)setupView {
+    [self.view addSubview:self.xLabel];
+    [self.view addSubview:self.clearButton];
+    _lingerList = [NSMutableArray array];
+}
 - (void)setupScene {
     // Setup the ARSCNViewDelegate - this gives us callbacks to handle new
     // geometry creation
@@ -80,8 +85,9 @@ typedef NS_OPTIONS(NSUInteger, CollisionCategory) {
     ARSCNDebugOptionShowFeaturePoints;
     
 //    SCNScene *scene = [SCNScene new];
-    SCNScene *scene = [SCNScene sceneNamed:@"art.scnassets/AR_hongbao01.dae"];
+    SCNScene *scene = [SCNScene scene];
     self.sceneView.scene = scene;
+    
     
     SCNBox *bottomPlane = [SCNBox boxWithWidth:1000 height:0.5 length:1000 chamferRadius:0];
     SCNMaterial *bottomMaterial = [SCNMaterial new];
@@ -98,8 +104,6 @@ typedef NS_OPTIONS(NSUInteger, CollisionCategory) {
     [self.sceneView.scene.rootNode addChildNode:bottomNode];
     self.sceneView.scene.physicsWorld.contactDelegate = self;
     
-    
-    //
     _lingerNode = [scene.rootNode childNodeWithName:@"AR_Hongbao01" recursively:YES];
     
 
@@ -107,7 +111,7 @@ typedef NS_OPTIONS(NSUInteger, CollisionCategory) {
 - (void)updateXYZ {
 //    _lingerNode.position = SCNVector3Make(_lingerNode.position.x, _lingerNode.position.y+10, _lingerNode.position.z);
 //    _lingerNode.scale = SCNVector3Make(_lingerNode.scale.x/1.5,_lingerNode.scale.y/1.5, _lingerNode.scale.z/1.5);
-    NSLog(@"x:%f,y:%f,z:%f",_lingerNode.position.x,_lingerNode.position.y,_lingerNode.position.z);
+//    NSLog(@"x:%f,y:%f,z:%f",_lingerNode.position.x,_lingerNode.position.y,_lingerNode.position.z);
     
     self.xLabel.text = [NSString stringWithFormat:@"x:%.3f,y:%.3f,z:%.3f",_lingerNode.position.x,_lingerNode.position.y,_lingerNode.position.z];
 }
@@ -120,6 +124,7 @@ typedef NS_OPTIONS(NSUInteger, CollisionCategory) {
     // methods to be called when scenes are detected
     configuration.planeDetection = ARPlaneDetectionHorizontal;
     
+    configuration.lightEstimationEnabled = YES;
     // Run the view's session
     [self.sceneView.session runWithConfiguration:configuration];
     
@@ -142,6 +147,8 @@ typedef NS_OPTIONS(NSUInteger, CollisionCategory) {
     }
     
     ARHitTestResult *hitResult = [result firstObject];
+    
+    NSLog(@"%f",hitResult.distance);
     [self insertNode:hitResult];
 }
 
@@ -162,27 +169,8 @@ typedef NS_OPTIONS(NSUInteger, CollisionCategory) {
 }
 
 - (void)insertNode:(ARHitTestResult*)hitResult {
-    SCNScene *lingerScene = [SCNScene sceneNamed:@"art.scnassets/linger.dae"];
-    
-    SCNNode *lingerNode = _lingerNode;
-    
-    for(SCNNode *childNode in lingerScene.rootNode.childNodes) {
-        [lingerNode addChildNode:childNode];
-    }
-    
-//    lingerNode.physicsBody = [SCNPhysicsBody bodyWithType:SCNPhysicsBodyTypeDynamic shape:nil];
-//    lingerNode.physicsBody.mass = 100.0;
-//    lingerNode.physicsBody.categoryBitMask = CollisionCategoryCube;
-    
-    float insertionYOffset = 0.5;
-    lingerNode.position = SCNVector3Make(hitResult.worldTransform.columns[3].x, hitResult.worldTransform.columns[3].y + insertionYOffset, hitResult.worldTransform.columns[3].z);
-
-    lingerNode.scale = SCNVector3Make(0.0001,0.0001,0.0001);
-    
-//    lingerNode.position = SCNVector3Make(0, -200.0, -800.0);
-//    lingerNode.scale = SCNVector3Make(0.1,0.1,0.1);
-    
-    [self.sceneView.scene.rootNode addChildNode:lingerNode];
+    SCNVector3 vector = SCNVector3Make(hitResult.worldTransform.columns[3].x,-hitResult.distance, hitResult.worldTransform.columns[3].z);
+    [self addNode:vector];
     
 }
 
@@ -195,8 +183,37 @@ typedef NS_OPTIONS(NSUInteger, CollisionCategory) {
     
     Plane *plane = [[Plane alloc]initWithAnchor:(ARPlaneAnchor*)anchor isHidden:NO];
     
+    
+//    NSLog(@"plane:X:%fY:%fZ:%f",(ARPlaneAnchor*)anchor)
     [node addChildNode:plane];
     
+    SCNVector3 vector = SCNVector3Make(plane.anchor.center.x, plane.anchor.center.y, plane.anchor.center.z);
+    
+    [self addNode:vector];
+}
+
+- (void)addNode:(SCNVector3)vector3 {
+    
+    NSLog(@"x:%f,y:%f,z:%f",vector3.x,vector3.y,vector3.z);
+    SCNScene *lingerScene = [SCNScene sceneNamed:@"art.scnassets/linger.dae"];
+    
+    SCNNode *lingerNode = [SCNNode node];
+    
+    for(SCNNode *childNode in lingerScene.rootNode.childNodes) {
+        [lingerNode addChildNode:childNode];
+    }
+    
+    //    lingerNode.physicsBody = [SCNPhysicsBody bodyWithType:SCNPhysicsBodyTypeDynamic shape:nil];
+    //    lingerNode.physicsBody.mass = 100.0;
+    //    lingerNode.physicsBody.categoryBitMask = CollisionCategoryCube;
+    
+    float insertionYOffset = 0.5;
+    lingerNode.position = SCNVector3Make(vector3.x, vector3.y, vector3.z);
+    
+    lingerNode.scale = SCNVector3Make(0.001,0.001,0.001);
+    
+    [self.sceneView.scene.rootNode addChildNode:lingerNode];
+    [self.lingerList addObject:lingerNode];
 }
 
 -(void)renderer:(id<SCNSceneRenderer>)renderer didUpdateNode:(SCNNode *)node forAnchor:(ARAnchor *)anchor {
@@ -204,7 +221,13 @@ typedef NS_OPTIONS(NSUInteger, CollisionCategory) {
     if(plane == nil) {
         return;
     }
+    
+    
+    
     [plane update:(ARPlaneAnchor *)anchor];
+    
+    NSLog(@"update plane:x:%f,y:%f,z:%f",plane.position.x,plane.position.y,plane.position.z);
+
 }
 
 - (void)renderer:(id<SCNSceneRenderer>)renderer updateAtTime:(NSTimeInterval)time {
@@ -218,6 +241,10 @@ typedef NS_OPTIONS(NSUInteger, CollisionCategory) {
 //    self.sceneView.scene.lightingEnvironment.intensity = estimate.ambientIntensity/1000.0*3;
     
     
+}
+
+-(void)session:(ARSession *)session didFailWithError:(NSError *)error {
+    NSLog(@"%@",error);
 }
 
 -(void)insertSpotLight:(SCNVector3)position {
@@ -241,10 +268,25 @@ typedef NS_OPTIONS(NSUInteger, CollisionCategory) {
         _xLabel.font = [UIFont systemFontOfSize:20.0f];
         _xLabel.textColor = [UIColor whiteColor];
         
-        [self.view addSubview:_xLabel];
     }
     
     return _xLabel;
+}
+
+- (UIButton *)clearButton {
+    if(!_clearButton) {
+        _clearButton = [[UIButton alloc]init];
+        _clearButton.frame = CGRectMake(100, 100, 400, 50);
+        [_clearButton setTitle:@"clear" forState:UIControlStateNormal];
+        [_clearButton addTarget:self action:@selector(clear) forControlEvents:UIControlEventTouchUpInside];
+    }
+    return _clearButton;
+}
+
+- (void)clear {
+    for(int i = 0;i<self.lingerList.count;i++) {
+        self.lingerList[i].position = SCNVector3Make(self.lingerList[i].position.x, self.lingerList[i].position.y - 0.1, self.lingerList[i].position.z);
+    }
 }
 
 @end
